@@ -1,5 +1,11 @@
 package co.empresa.ticket_service.config;
 
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -9,17 +15,13 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
-
 /**
  * Maneja todas las excepciones del servicio y las convierte
  * en respuestas JSON consistentes para el frontend y el API Gateway.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     // ── Errores de validación (@Valid en DTOs) ─────────────────────────────────
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
@@ -47,10 +49,15 @@ public class GlobalExceptionHandler {
     }
 
     // ── Cualquier otro error no controlado ────────────────────────────────────
+    
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex) {
+        // Loguear el detalle internamente para debugging
+        log.error("Error no controlado: {}", ex.getMessage(), ex);
+        // Retornar mensaje genérico al cliente — sin detalles internos
         return buildError(HttpStatus.INTERNAL_SERVER_ERROR,
-            "Error interno del servidor: " + ex.getMessage(), null);
+            "Ocurrió un error inesperado. Intenta de nuevo.", null);
     }
 
     private ResponseEntity<Map<String, Object>> buildError(

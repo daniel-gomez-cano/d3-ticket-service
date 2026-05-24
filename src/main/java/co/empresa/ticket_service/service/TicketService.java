@@ -7,6 +7,8 @@ import co.empresa.ticket_service.model.Ticket;
 import co.empresa.ticket_service.model.TicketType;
 import co.empresa.ticket_service.repository.TicketRepository;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,12 +31,37 @@ public class TicketService {
      */
     @Transactional
     public TicketResponse generateTicket(CreateTicketRequest req) {
-        // Idempotencia: mismo orderId → misma boleta
-        if (ticketRepo.existsByOrderId(req.getOrderId())) {
+        // Idempotencia: buscar directamente sin existsByOrderId
+        Optional<Ticket> existing = ticketRepo.findByOrderId(req.getOrderId());
+        if (existing.isPresent()) {
+            return toResponse(existing.get());
+        }
+
+        try {
+            TicketType ticketType = ticketTypeService.reserveOne(req.getTicketTypeId());
+
+            String qrToken = UUID.randomUUID().toString();
+            String qrImageBase64 = qrService.generateQrBase64(qrToken);
+
+            Ticket ticket = Ticket.builder()
+                    .ticketType(ticketType)
+                    .orderId(req.getOrderId())
+                    .buyerId(req.getBuyerId())
+                    .qrToken(qrToken)
+                    .qrImageBase64(qrImageBase64)
+                    .status(Ticket.TicketStatus.ACTIVE)
+                    .build();
+
+            return toResponse(ticketRepo.save(ticket));
+
+        } catch (DataIntegrityViolationException e) {
+            // Dos requests concurrentes con el mismo orderId — retornar la que ganó
             return ticketRepo.findByOrderId(req.getOrderId())
                     .map(this::toResponse)
-                    .orElseThrow();
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                            "Error generando la boleta"));
         }
+    }
 
         // Reservar cupo (decrementa remainingCapacity atómicamente)
         TicketType ticketType = ticketTypeService.reserveOne(req.getTicketTypeId());
@@ -105,6 +132,7 @@ public class TicketService {
     }
 
     /** El comprador consulta su boleta — solo puede ver las suyas */
+        @Transactional(readOnly = true)
     public TicketResponse getById(String ticketId, String buyerId) {
         Ticket ticket = ticketRepo.findById(ticketId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Boleta no encontrada"));

@@ -38,7 +38,7 @@ public class TicketTypeController {
 
     // SCRUM-31
     @PostMapping
-    @PreAuthorize("hasRole('ROLE_ORGANIZER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_ORGANIZER') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<TicketTypeResponse> create(
             @Valid @RequestBody CreateTicketTypeRequest req,
             @AuthenticationPrincipal Jwt jwt) {
@@ -68,7 +68,7 @@ public class TicketTypeController {
 
     // SCRUM-33
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_ORGANIZER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_ORGANIZER') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<TicketTypeResponse> update(
             @PathVariable String id,
             @Valid @RequestBody UpdateTicketTypeRequest req,
@@ -80,7 +80,7 @@ public class TicketTypeController {
 
     // SCRUM-34
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_ORGANIZER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_ORGANIZER') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<Void> delete(
             @PathVariable String id,
             @AuthenticationPrincipal Jwt jwt) {

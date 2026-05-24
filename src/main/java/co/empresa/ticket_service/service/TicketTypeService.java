@@ -5,6 +5,7 @@ import co.empresa.ticket_service.dto.TicketTypeResponse;
 import co.empresa.ticket_service.dto.UpdateTicketTypeRequest;
 import co.empresa.ticket_service.model.TicketType;
 import co.empresa.ticket_service.repository.TicketTypeRepository;
+import co.empresa.ticket_service.config.EventServiceClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -16,12 +17,15 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class TicketTypeService {
-
+    private final EventServiceClient eventServiceClient;
     private final TicketTypeRepository repo;
 
     // SCRUM-31: Crear
     @Transactional
     public TicketTypeResponse create(CreateTicketTypeRequest req, String organizerId) {
+
+         eventServiceClient.verifyEventOwnership(req.getEventId(), organizerId);
+         
         TicketType tt = TicketType.builder()
                 .eventId(req.getEventId())
                 .name(req.getName())

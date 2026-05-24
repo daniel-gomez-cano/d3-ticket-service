@@ -46,10 +46,11 @@ public class SecurityConfig {
 
         return http.build();
     }
-
-    /**
-     * Extrae roles de Keycloak desde realm_access.roles
-     * y los convierte a SimpleGrantedAuthority para Spring Security.
+    /*
+      Extrae roles de Keycloak desde realm_access.roles
+      y los convierte a SimpleGrantedAuthority conservando
+      el prefijo ROLE_. Por ello, las validaciones deben usar
+      {@code @PreAuthorize("hasAuthority('ROLE_ORGANIZER')")}.
      */
     @Bean
     public JwtAuthenticationConverter jwtAuthenticationConverter() {
