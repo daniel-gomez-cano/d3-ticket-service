@@ -1,0 +1,41 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Pega este bloque dentro del docker-compose.yml raíz del proyecto
+# (al mismo nivel que auth-service y event-service)
+# ──────────────────────────────────────────────────────────────────────────────
+
+  ticket-service:
+    build: ./ticket-service
+    container_name: ticket-service
+    ports:
+      - "8082:8082"
+    environment:
+      # Keycloak — apunta al contenedor de Keycloak en la red Docker
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/viva-eventos
+      # Base de datos
+      DB_URL: jdbc:postgresql://ticket-db:5432/ticketdb
+      DB_DRIVER: org.postgresql.Driver
+      DB_USER: ticket_user
+      DB_PASSWORD: ticket_pass
+      # URL interna del event-service dentro de la red Docker
+      EVENT_SERVICE_URL: http://event-service:8081
+    depends_on:
+      - ticket-db
+      - keycloak
+    networks:
+      - vivaeventos-net
+
+  ticket-db:
+    image: postgres:16-alpine
+    container_name: ticket-db
+    environment:
+      POSTGRES_DB: ticketdb
+      POSTGRES_USER: ticket_user
+      POSTGRES_PASSWORD: ticket_pass
+    volumes:
+      - ticket-db-data:/var/lib/postgresql/data
+    networks:
+      - vivaeventos-net
+
+# Agregar al bloque volumes: del docker-compose raíz:
+# volumes:
+#   ticket-db-data:
