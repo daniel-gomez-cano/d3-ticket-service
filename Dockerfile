@@ -7,5 +7,5 @@ RUN apk add --no-cache maven && mvn package -DskipTests
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 COPY --from=build /app/target/ticket-service-*.jar app.jar
-EXPOSE 8082
+EXPOSE 8085
 ENTRYPOINT ["java", "-jar", "app.jar"]
