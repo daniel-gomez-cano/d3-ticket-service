@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -31,7 +32,6 @@ public class TicketService {
      */
     @Transactional
     public TicketResponse generateTicket(CreateTicketRequest req) {
-        // Idempotencia: buscar directamente sin existsByOrderId
         Optional<Ticket> existing = ticketRepo.findByOrderId(req.getOrderId());
         if (existing.isPresent()) {
             return toResponse(existing.get());
@@ -55,30 +55,11 @@ public class TicketService {
             return toResponse(ticketRepo.save(ticket));
 
         } catch (DataIntegrityViolationException e) {
-            // Dos requests concurrentes con el mismo orderId — retornar la que ganó
             return ticketRepo.findByOrderId(req.getOrderId())
                     .map(this::toResponse)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                             "Error generando la boleta"));
         }
-    }
-
-        // Reservar cupo (decrementa remainingCapacity atómicamente)
-        TicketType ticketType = ticketTypeService.reserveOne(req.getTicketTypeId());
-
-        String qrToken = UUID.randomUUID().toString();
-        String qrImageBase64 = qrService.generateQrBase64(qrToken);
-
-        Ticket ticket = Ticket.builder()
-                .ticketType(ticketType)
-                .orderId(req.getOrderId())
-                .buyerId(req.getBuyerId())
-                .qrToken(qrToken)
-                .qrImageBase64(qrImageBase64)
-                .status(Ticket.TicketStatus.ACTIVE)
-                .build();
-
-        return toResponse(ticketRepo.save(ticket));
     }
 
     /**
@@ -132,13 +113,15 @@ public class TicketService {
     }
 
     /** El comprador consulta su boleta — solo puede ver las suyas */
-        @Transactional(readOnly = true)
+    @Transactional(readOnly = true)
     public TicketResponse getById(String ticketId, String buyerId) {
         Ticket ticket = ticketRepo.findById(ticketId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Boleta no encontrada"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Boleta no encontrada"));
 
         if (!ticket.getBuyerId().equals(buyerId))
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No tienes acceso a esta boleta");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "No tienes acceso a esta boleta");
 
         return toResponse(ticket);
     }
