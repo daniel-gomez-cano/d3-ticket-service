@@ -29,14 +29,13 @@ jobs:
 
       - name: Compilar y ejecutar tests
         run: mvn clean verify --no-transfer-progress
-        working-directory: ticket-service
 
       - name: Publicar reporte de tests
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: ticket-service/target/surefire-reports/
+          path: target/surefire-reports/
 
   # ─────────────────────────────────────────────────────────────────
   # JOB 2: CD — Build y push de imagen Docker a DockerHub
@@ -64,7 +63,6 @@ jobs:
 
       - name: Construir JAR
         run: mvn clean package -DskipTests --no-transfer-progress
-        working-directory: ticket-service
 
       - name: Configurar Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -81,18 +79,15 @@ jobs:
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/ticket-service
           tags: |
-            # Tag con el SHA del commit (ej: sha-abc1234)
             type=sha,prefix=sha-
-            # Tag 'latest' siempre en main
             type=raw,value=latest
 
       - name: Build y Push imagen Docker
         uses: docker/build-push-action@v5
         with:
-          context: ./ticket-service
+          context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Cache para acelerar builds posteriores
           cache-from: type=gha
           cache-to: type=gha,mode=max
