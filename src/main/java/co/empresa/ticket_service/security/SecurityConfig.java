@@ -46,12 +46,11 @@ public class SecurityConfig {
 
         return http.build();
     }
-    /*
-      Extrae roles de Keycloak desde realm_access.roles
-      y los convierte a SimpleGrantedAuthority conservando
-      el prefijo ROLE_. Por ello, las validaciones deben usar
-      {@code @PreAuthorize("hasAuthority('ROLE_ORGANIZER')")}.
-     */
+    /* OJOOOO CON ESTO, DEBERÁ SER IGUAL PARA TODO SECURITYCONFIG
+    Extrae roles de Keycloak desde realm_access.roles.
+    Keycloak emite los roles SIN prefijo ("ORGANIZER", "CLIENT", "ADMIN").
+    Este converter agrega "ROLE_" para que hasAuthority('ROLE_X') funcione.
+    */
     @Bean
     public JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
@@ -67,7 +66,8 @@ public class SecurityConfig {
             Collection<String> roles = (Collection<String>) realmAccess.get("roles");
 
             return roles.stream()
-                    .map(SimpleGrantedAuthority::new)
+                    .map(role -> new SimpleGrantedAuthority(
+                            role.startsWith("ROLE_") ? role : "ROLE_" + role))  // ← única línea cambiada
                     .collect(Collectors.toList());
         });
 
