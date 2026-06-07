@@ -4,10 +4,10 @@ import co.empresa.ticket_service.dto.CreateTicketRequest;
 import co.empresa.ticket_service.dto.TicketResponse;
 import co.empresa.ticket_service.dto.ValidationResult;
 import co.empresa.ticket_service.model.Ticket;
-import co.empresa.ticket_service.model.TicketType;
 import co.empresa.ticket_service.repository.TicketRepository;
 import lombok.RequiredArgsConstructor;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -22,9 +22,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class TicketService {
 
+    private static final Logger log = LoggerFactory.getLogger(TicketService.class);
+
     private final TicketRepository ticketRepo;
-    private final TicketTypeService ticketTypeService;
     private final QrService qrService;
+
+    // El stock (remainingCapacity) ya no lo maneja el ticket-service.
+    // El event-service descuenta el cupo cuando el order-service confirma la compra.
 
     /**
      * Genera una boleta individual tras confirmación de pago.
@@ -32,19 +36,21 @@ public class TicketService {
      */
     @Transactional
     public TicketResponse generateTicket(CreateTicketRequest req) {
+        // Idempotencia: si ya existe, retornar la boleta existente
         Optional<Ticket> existing = ticketRepo.findByOrderId(req.getOrderId());
         if (existing.isPresent()) {
+            log.info("Boleta ya existe para orderId={}, retornando existente", req.getOrderId());
             return toResponse(existing.get());
         }
 
         try {
-            TicketType ticketType = ticketTypeService.reserveOne(req.getTicketTypeId());
-
             String qrToken = UUID.randomUUID().toString();
             String qrImageBase64 = qrService.generateQrBase64(qrToken);
 
             Ticket ticket = Ticket.builder()
-                    .ticketType(ticketType)
+                    .ticketTypeId(req.getTicketTypeId())
+                    .ticketTypeName(req.getTicketTypeName())
+                    .eventId(req.getEventId())
                     .orderId(req.getOrderId())
                     .buyerId(req.getBuyerId())
                     .qrToken(qrToken)
@@ -52,9 +58,12 @@ public class TicketService {
                     .status(Ticket.TicketStatus.ACTIVE)
                     .build();
 
-            return toResponse(ticketRepo.save(ticket));
+            TicketResponse response = toResponse(ticketRepo.save(ticket));
+            log.info("Boleta generada: id={} orderId={}", response.getId(), req.getOrderId());
+            return response;
 
         } catch (DataIntegrityViolationException e) {
+            // Dos requests concurrentes con el mismo orderId — retornar la que ganó
             return ticketRepo.findByOrderId(req.getOrderId())
                     .map(this::toResponse)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
@@ -97,16 +106,19 @@ public class TicketService {
                     .build();
         }
 
+        // Marcar como usada
         ticket.setStatus(Ticket.TicketStatus.USED);
         ticket.setUsedAt(LocalDateTime.now());
         ticketRepo.save(ticket);
+
+        log.info("QR validado exitosamente: ticketId={} eventId={}", ticket.getId(), ticket.getEventId());
 
         return ValidationResult.builder()
                 .valid(true)
                 .message("Acceso permitido")
                 .ticketId(ticket.getId())
-                .ticketTypeName(ticket.getTicketType().getName())
-                .eventId(ticket.getTicketType().getEventId())
+                .ticketTypeName(ticket.getTicketTypeName())
+                .eventId(ticket.getEventId())
                 .buyerId(ticket.getBuyerId())
                 .validatedAt(ticket.getUsedAt())
                 .build();
@@ -129,9 +141,9 @@ public class TicketService {
     private TicketResponse toResponse(Ticket t) {
         return TicketResponse.builder()
                 .id(t.getId())
-                .ticketTypeId(t.getTicketType().getId())
-                .ticketTypeName(t.getTicketType().getName())
-                .eventId(t.getTicketType().getEventId())
+                .ticketTypeId(t.getTicketTypeId())
+                .ticketTypeName(t.getTicketTypeName())
+                .eventId(t.getEventId())
                 .orderId(t.getOrderId())
                 .buyerId(t.getBuyerId())
                 .qrToken(t.getQrToken())

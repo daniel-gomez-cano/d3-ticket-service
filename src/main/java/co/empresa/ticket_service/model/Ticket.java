@@ -7,6 +7,10 @@ import java.time.LocalDateTime;
 /**
  * Boleta individual generada tras confirmación de pago.
  * Cada boleta tiene un QR único e irrepetible.
+ *
+ * Los tipos de boleta (precio, stock, cantidad) son responsabilidad del
+ * event-service. Aquí solo guardamos referencias externas para no acoplar
+ * los dos servicios a nivel de base de datos.
  */
 @Entity
 @Table(name = "tickets")
@@ -17,9 +21,27 @@ public class Ticket {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ticket_type_id", nullable = false)
-    private TicketType ticketType;
+    /**
+     * ID del ticketType en el event-service (referencia externa).
+     * Ej: el ID 3 o 4 que devuelve POST /api/v1/events con sus ticketTypes.
+     */
+    @Column(name = "ticket_type_id", nullable = false)
+    private String ticketTypeId;
+
+    /**
+     * Nombre del tipo de boleta guardado localmente para no llamar
+     * al event-service cada vez que se muestra la boleta.
+     * Ej: "General", "VIP"
+     */
+    @Column(name = "ticket_type_name", nullable = false)
+    private String ticketTypeName;
+
+    /**
+     * ID del evento en el event-service (referencia externa).
+     * Necesario para validación en puerta y trazabilidad.
+     */
+    @Column(name = "event_id", nullable = false)
+    private String eventId;
 
     /** ID de la orden en el payment-service (referencia externa) */
     @Column(name = "order_id", nullable = false, unique = true)
