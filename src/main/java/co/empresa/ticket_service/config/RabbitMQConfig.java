@@ -7,7 +7,7 @@ import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
+import org.springframework.amqp.support.converter.Jackson2JavaTypeMapper;
 /**
  * El ticket-service solo CONSUME de payment.result.queue.
  * No publica eventos — solo escucha pagos aprobados para generar tickets.
@@ -42,7 +42,11 @@ public class RabbitMQConfig {
 
     @Bean
     public MessageConverter jsonMessageConverter() {
-        return new Jackson2JsonMessageConverter();
+        Jackson2JsonMessageConverter converter = new Jackson2JsonMessageConverter();
+        // Usa el tipo del parámetro del @RabbitListener en vez del header __TypeId__
+        // Esto resuelve el mismatch cuando payment-service publica con su propio package
+        converter.setTypePrecedence(Jackson2JavaTypeMapper.TypePrecedence.INFERRED);
+        return converter;
     }
 
     @Bean
