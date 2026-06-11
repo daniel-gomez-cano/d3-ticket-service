@@ -19,7 +19,7 @@ import org.springframework.amqp.support.converter.Jackson2JavaTypeMapper;
 public class RabbitMQConfig {
 
     public static final String PAYMENT_EXCHANGE     = "payment.exchange";
-    public static final String PAYMENT_RESULT_QUEUE = "payment.result.queue";
+    public static final String PAYMENT_RESULT_QUEUE = "payment.result.ticket.queue"; // antes: "payment.result.queue"
     public static final String PAYMENT_RESULT_KEY   = "payment.result";
 
     @Bean
