@@ -70,7 +70,7 @@ public class TicketController {
     /**
      * El comprador lista todas sus propias boletas.
      */
-    @GetMapping("/my")
+    @GetMapping("/buyer/me")
     @PreAuthorize("hasAuthority('ROLE_CLIENT') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<List<TicketResponse>> getMyTickets(
             @AuthenticationPrincipal Jwt jwt) {
