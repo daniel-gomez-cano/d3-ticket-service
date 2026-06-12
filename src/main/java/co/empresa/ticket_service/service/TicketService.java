@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,6 +30,18 @@ public class TicketService {
 
     // El stock (remainingCapacity) ya no lo maneja el ticket-service.
     // El event-service descuenta el cupo cuando el order-service confirma la compra.
+
+
+
+    /** Lista todas las boletas del comprador autenticado */
+    @Transactional(readOnly = true)
+    public List<TicketResponse> getByBuyer(String buyerId) {
+        return ticketRepo.findByBuyerId(buyerId)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
 
     /**
      * Genera una boleta individual tras confirmación de pago.

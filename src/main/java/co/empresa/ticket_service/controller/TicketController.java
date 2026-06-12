@@ -19,6 +19,8 @@ import co.empresa.ticket_service.dto.ValidationResult;
 import co.empresa.ticket_service.service.TicketService;
 import lombok.RequiredArgsConstructor;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/tickets")
 @RequiredArgsConstructor
@@ -62,5 +64,18 @@ public class TicketController {
 
         String buyerId = jwt.getSubject();
         return ResponseEntity.ok(service.getById(ticketId, buyerId));
+    }
+
+
+    /**
+     * El comprador lista todas sus propias boletas.
+     */
+    @GetMapping("/my")
+    @PreAuthorize("hasAuthority('ROLE_CLIENT') or hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<List<TicketResponse>> getMyTickets(
+            @AuthenticationPrincipal Jwt jwt) {
+
+        String buyerId = jwt.getSubject();
+        return ResponseEntity.ok(service.getByBuyer(buyerId));
     }
 }
