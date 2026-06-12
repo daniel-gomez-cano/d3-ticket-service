@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -30,6 +31,18 @@ public class TicketService {
     private final TicketRepository ticketRepo;
     private final QrService qrService;
     private final RabbitTemplate rabbitTemplate;
+
+
+
+    /** Lista todas las boletas del comprador autenticado */
+    @Transactional(readOnly = true)
+    public List<TicketResponse> getByBuyer(String buyerId) {
+        return ticketRepo.findByBuyerId(buyerId)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
 
     /**
      * Genera una boleta individual tras confirmación de pago.
