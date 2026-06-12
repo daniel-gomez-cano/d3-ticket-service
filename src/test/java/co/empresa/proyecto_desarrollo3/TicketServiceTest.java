@@ -4,7 +4,11 @@ import co.empresa.ticket_service.dto.CreateTicketRequest;
 import co.empresa.ticket_service.dto.TicketResponse;
 import co.empresa.ticket_service.dto.ValidationResult;
 import co.empresa.ticket_service.model.Ticket;
+import co.empresa.ticket_service.model.TicketType;
 import co.empresa.ticket_service.repository.TicketRepository;
+import co.empresa.ticket_service.service.QrService;
+import co.empresa.ticket_service.service.TicketService;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,21 +45,18 @@ class TicketServiceTest {
     @BeforeEach
     void setUp() {
         validRequest = new CreateTicketRequest(
-                "type-001", "General", "event-001", "order-001", "buyer-001"
+                "type-001",
+                "order-001",
+                "buyer-001"
         );
 
-        activeTicket = Ticket.builder()
-                .id("ticket-001")
-                .ticketTypeId("type-001")
-                .ticketTypeName("General")
-                .eventId("event-001")
-                .orderId("order-001")
-                .buyerId("buyer-001")
-                .qrToken("qr-token-001")
-                .qrImageBase64("base64data")
-                .status(Ticket.TicketStatus.ACTIVE)
-                .createdAt(LocalDateTime.now())
-                .build();
+        TicketType ticketType = TicketType.builder()
+        .id("type-001")
+        .build();
+
+    activeTicket = Ticket.builder()
+            .id("ticket-001")
+            .ticketType(ticketType)
     }
 
     // generateTicket
