@@ -51,12 +51,19 @@ class TicketServiceTest {
         );
 
         TicketType ticketType = TicketType.builder()
-        .id("type-001")
-        .build();
+                .id("type-001")
+                .build();
 
-    activeTicket = Ticket.builder()
-            .id("ticket-001")
-            .ticketType(ticketType)
+        activeTicket = Ticket.builder()
+                .id("ticket-001")
+                .ticketType(ticketType)
+                .orderId("order-001")
+                .buyerId("buyer-001")
+                .qrToken("qr-token-001")
+                .qrImageBase64("base64data")
+                .status(Ticket.TicketStatus.ACTIVE)
+                .createdAt(LocalDateTime.now())
+                .build();
     }
 
     // generateTicket
