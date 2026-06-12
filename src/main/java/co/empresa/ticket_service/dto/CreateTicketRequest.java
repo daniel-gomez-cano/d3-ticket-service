@@ -9,8 +9,8 @@ import lombok.Setter;
  * Body del POST /api/tickets/generate
  * Lo llama el payment-service (o admin) tras confirmar un pago.
  *
- * Incluye ticketTypeName y eventId para no tener que llamar al
- * event-service al momento de generar la boleta.
+ * Se agrega buyerEmail para poder enviar el correo con la boleta
+ * sin necesidad de llamar a Keycloak para resolver el sub → email.
  */
 @Getter
 @Setter
@@ -32,4 +32,8 @@ public class CreateTicketRequest {
 
     /** sub de Keycloak del comprador */
     private String buyerId;
+
+    /** Correo del comprador — necesario para enviar la boleta por email */
+    private String buyerEmail;
+
 }

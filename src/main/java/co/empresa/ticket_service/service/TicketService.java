@@ -1,6 +1,8 @@
 package co.empresa.ticket_service.service;
 
+import co.empresa.ticket_service.config.RabbitMQConfig;
 import co.empresa.ticket_service.dto.CreateTicketRequest;
+import co.empresa.ticket_service.dto.TicketNotificationEvent;
 import co.empresa.ticket_service.dto.TicketResponse;
 import co.empresa.ticket_service.dto.ValidationResult;
 import co.empresa.ticket_service.model.Ticket;
@@ -8,6 +10,7 @@ import co.empresa.ticket_service.repository.TicketRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -27,9 +30,7 @@ public class TicketService {
 
     private final TicketRepository ticketRepo;
     private final QrService qrService;
-
-    // El stock (remainingCapacity) ya no lo maneja el ticket-service.
-    // El event-service descuenta el cupo cuando el order-service confirma la compra.
+    private final RabbitTemplate rabbitTemplate;
 
 
 
@@ -46,10 +47,12 @@ public class TicketService {
     /**
      * Genera una boleta individual tras confirmación de pago.
      * Es idempotente: si ya existe boleta para ese orderId, la retorna sin crear otra.
+     * Tras generar, publica un evento a RabbitMQ para que el notification-service
+     * envíe el correo con el QR al comprador.
      */
     @Transactional
     public TicketResponse generateTicket(CreateTicketRequest req) {
-        // Idempotencia: si ya existe, retornar la boleta existente
+        // Idempotencia: si ya existe, retornar la boleta existente sin reenviar correo
         Optional<Ticket> existing = ticketRepo.findByOrderId(req.getOrderId());
         if (existing.isPresent()) {
             log.info("Boleta ya existe para orderId={}, retornando existente", req.getOrderId());
@@ -73,15 +76,77 @@ public class TicketService {
 
             TicketResponse response = toResponse(ticketRepo.save(ticket));
             log.info("Boleta generada: id={} orderId={}", response.getId(), req.getOrderId());
+
+            // Publicar evento al notification-service para enviar el correo con el QR
+            publishNotificationEvent(req, response);
+
             return response;
 
         } catch (DataIntegrityViolationException e) {
             // Dos requests concurrentes con el mismo orderId — retornar la que ganó
             return ticketRepo.findByOrderId(req.getOrderId())
                     .map(this::toResponse)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                            "Error generando la boleta"));
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.INTERNAL_SERVER_ERROR, "Error generando la boleta"));
         }
+    }
+
+    /**
+     * Publica un TicketNotificationEvent a RabbitMQ.
+     * Si falla, solo se loguea — no debe interrumpir la generación de la boleta.
+     */
+    private void publishNotificationEvent(CreateTicketRequest req, TicketResponse ticket) {
+        try {
+            if (req.getBuyerEmail() == null || req.getBuyerEmail().isBlank()) {
+                log.warn("buyerEmail vacío para orderId={}, no se enviará correo", req.getOrderId());
+                return;
+            }
+
+            TicketNotificationEvent event = new TicketNotificationEvent(
+                    req.getBuyerEmail(),
+                    "Tu boleta para el evento - VivaEventos",
+                    buildEmailBody(ticket),
+                    ticket.getQrImageBase64()
+            );
+
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.NOTIFICATION_EXCHANGE,
+                    RabbitMQConfig.NOTIFICATION_ROUTING_KEY,
+                    event
+            );
+
+            log.info("Evento de notificación publicado para orderId={}", req.getOrderId());
+
+        } catch (Exception e) {
+            // La boleta ya fue creada — el correo fallido no debe revertir la transacción
+            log.error("Error publicando notificación para orderId={}: {}", req.getOrderId(), e.getMessage());
+        }
+    }
+
+    /**
+     * Construye el HTML del correo con el QR embebido via cid:qr.
+     * El notification-service adjuntará la imagen con ese mismo id.
+     */
+    private String buildEmailBody(TicketResponse ticket) {
+        return """
+                <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto;">
+                    <h2 style="color: #333;">¡Tu boleta está lista! 🎉</h2>
+                    <p><b>Tipo de boleta:</b> %s</p>
+                    <p><b>ID del evento:</b> %s</p>
+                    <p><b>ID de orden:</b> %s</p>
+                    <br/>
+                    <p>Presenta este código QR en la puerta del evento:</p>
+                    <img src="cid:qr" width="250" height="250" alt="QR Boleta"/>
+                    <br/><br/>
+                    <p style="color: #888; font-size: 12px;">
+                        No compartas este QR. Es personal e intransferible.
+                    </p>
+                </div>
+                """.formatted(
+                ticket.getTicketTypeName(),
+                ticket.getEventId(),
+                ticket.getOrderId()
+        );
     }
 
     /**
@@ -119,7 +184,6 @@ public class TicketService {
                     .build();
         }
 
-        // Marcar como usada
         ticket.setStatus(Ticket.TicketStatus.USED);
         ticket.setUsedAt(LocalDateTime.now());
         ticketRepo.save(ticket);
@@ -141,8 +205,8 @@ public class TicketService {
     @Transactional(readOnly = true)
     public TicketResponse getById(String ticketId, String buyerId) {
         Ticket ticket = ticketRepo.findById(ticketId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                        "Boleta no encontrada"));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Boleta no encontrada"));
 
         if (!ticket.getBuyerId().equals(buyerId))
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
@@ -166,4 +230,5 @@ public class TicketService {
                 .usedAt(t.getUsedAt())
                 .build();
     }
+
 }

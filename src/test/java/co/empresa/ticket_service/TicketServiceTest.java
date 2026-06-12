@@ -1,5 +1,26 @@
 package co.empresa.ticket_service;
 
+import java.time.LocalDateTime;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.web.server.ResponseStatusException;
+
 import co.empresa.ticket_service.dto.CreateTicketRequest;
 import co.empresa.ticket_service.dto.TicketResponse;
 import co.empresa.ticket_service.dto.ValidationResult;
@@ -7,23 +28,6 @@ import co.empresa.ticket_service.model.Ticket;
 import co.empresa.ticket_service.repository.TicketRepository;
 import co.empresa.ticket_service.service.QrService;
 import co.empresa.ticket_service.service.TicketService;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.web.server.ResponseStatusException;
-
-import java.time.LocalDateTime;
-import java.util.Optional;
-
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("TicketService — Tests unitarios")
@@ -35,6 +39,9 @@ private TicketRepository ticketRepo;
 
 @Mock
 private QrService qrService;
+
+@Mock
+private RabbitTemplate rabbitTemplate;
 
 @InjectMocks
 private TicketService ticketService;
@@ -49,7 +56,8 @@ void setUp() {
             "General",
             "event-001",
             "order-001",
-            "buyer-001"
+            "buyer-001",
+            "buyer@test.com"
     );
 
     activeTicket = Ticket.builder()
