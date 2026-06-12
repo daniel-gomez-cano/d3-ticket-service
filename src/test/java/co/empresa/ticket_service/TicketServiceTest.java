@@ -1,4 +1,4 @@
-package co.empresa.ticket_service.service;
+package co.empresa.ticket_service;
 
 import co.empresa.ticket_service.dto.CreateTicketRequest;
 import co.empresa.ticket_service.dto.TicketResponse;
@@ -8,6 +8,7 @@ import co.empresa.ticket_service.model.TicketType;
 import co.empresa.ticket_service.repository.TicketRepository;
 import co.empresa.ticket_service.service.QrService;
 import co.empresa.ticket_service.service.TicketService;
+import co.empresa.ticket_service.service.TicketTypeService;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,11 +37,15 @@ class TicketServiceTest {
     @Mock
     private QrService qrService;
 
+    @Mock
+    private TicketTypeService ticketTypeService;
+
     @InjectMocks
     private TicketService ticketService;
 
     private CreateTicketRequest validRequest;
     private Ticket activeTicket;
+    private TicketType ticketType;
 
     @BeforeEach
     void setUp() {
@@ -50,8 +55,13 @@ class TicketServiceTest {
                 "buyer-001"
         );
 
-        TicketType ticketType = TicketType.builder()
+        ticketType = TicketType.builder()
                 .id("type-001")
+                .eventId("event-001")
+                .name("General")
+                .totalCapacity(100)
+                .remainingCapacity(100)
+                .organizerId("org-001")
                 .build();
 
         activeTicket = Ticket.builder()
@@ -65,8 +75,7 @@ class TicketServiceTest {
                 .createdAt(LocalDateTime.now())
                 .build();
     }
-
-    // generateTicket
+        // generateTicket
 
     @Test
     @DisplayName("generateTicket: crea boleta nueva exitosamente")
@@ -74,6 +83,8 @@ class TicketServiceTest {
         when(ticketRepo.findByOrderId("order-001")).thenReturn(Optional.empty());
         when(qrService.generateQrBase64(anyString())).thenReturn("base64data");
         when(ticketRepo.save(any(Ticket.class))).thenReturn(activeTicket);
+        when(ticketTypeService.reserveOne(anyString()))
+        .thenReturn(ticketType);
 
         TicketResponse response = ticketService.generateTicket(validRequest);
 
@@ -90,6 +101,8 @@ class TicketServiceTest {
     @DisplayName("generateTicket: idempotente — retorna boleta existente sin crear duplicado")
     void generateTicket_idempotent_returnsExisting() {
         when(ticketRepo.findByOrderId("order-001")).thenReturn(Optional.of(activeTicket));
+        when(ticketTypeService.reserveOne(anyString()))
+        .thenReturn(ticketType);
 
         TicketResponse response = ticketService.generateTicket(validRequest);
 
@@ -106,6 +119,8 @@ class TicketServiceTest {
                 .thenReturn(Optional.of(activeTicket));
         when(qrService.generateQrBase64(anyString())).thenReturn("base64data");
         when(ticketRepo.save(any())).thenThrow(new DataIntegrityViolationException("duplicate key"));
+        when(ticketTypeService.reserveOne(anyString()))
+        .thenReturn(ticketType);
 
         TicketResponse response = ticketService.generateTicket(validRequest);
 
