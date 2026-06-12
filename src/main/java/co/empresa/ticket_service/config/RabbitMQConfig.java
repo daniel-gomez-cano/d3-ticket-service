@@ -3,24 +3,31 @@ package co.empresa.ticket_service.config;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.support.converter.Jackson2JavaTypeMapper;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.amqp.support.converter.Jackson2JavaTypeMapper;
+
 /**
- * El ticket-service solo CONSUME de payment.result.queue.
- * No publica eventos — solo escucha pagos aprobados para generar tickets.
- *
- * Declara la misma topología que order-service y payment-service:
- * RabbitMQ es idempotente al re-declarar exchanges/colas con la misma config.
+ * El ticket-service:
+ *   - CONSUME de payment.result.ticket.queue (pagos aprobados)
+ *   - PUBLICA a notification.exchange (para enviar correo con boleta)
  */
 @Configuration
 public class RabbitMQConfig {
 
-    public static final String PAYMENT_EXCHANGE     = "payment.exchange";
-    public static final String PAYMENT_RESULT_QUEUE = "payment.result.ticket.queue"; // antes: "payment.result.queue"
-    public static final String PAYMENT_RESULT_KEY   = "payment.result";
+    // ── Pago (consume) ───────────────────────────────────────────
+    public static final String PAYMENT_EXCHANGE      = "payment.exchange";
+    public static final String PAYMENT_RESULT_QUEUE  = "payment.result.ticket.queue";
+    public static final String PAYMENT_RESULT_KEY    = "payment.result";
+
+    // ── Notificación (publica) ───────────────────────────────────
+    public static final String NOTIFICATION_EXCHANGE     = "notification.exchange";
+    public static final String NOTIFICATION_QUEUE        = "notification.queue";
+    public static final String NOTIFICATION_ROUTING_KEY  = "notification.send";
+
+    // ── Beans: payment ───────────────────────────────────────────
 
     @Bean
     public DirectExchange paymentExchange() {
@@ -40,11 +47,31 @@ public class RabbitMQConfig {
                 .with(PAYMENT_RESULT_KEY);
     }
 
+    // ── Beans: notification ──────────────────────────────────────
+
+    @Bean
+    public DirectExchange notificationExchange() {
+        return new DirectExchange(NOTIFICATION_EXCHANGE, true, false);
+    }
+
+    @Bean
+    public Queue notificationQueue() {
+        return QueueBuilder.durable(NOTIFICATION_QUEUE).build();
+    }
+
+    @Bean
+    public Binding notificationBinding() {
+        return BindingBuilder
+                .bind(notificationQueue())
+                .to(notificationExchange())
+                .with(NOTIFICATION_ROUTING_KEY);
+    }
+
+    // ── Converter y template ─────────────────────────────────────
+
     @Bean
     public MessageConverter jsonMessageConverter() {
         Jackson2JsonMessageConverter converter = new Jackson2JsonMessageConverter();
-        // Usa el tipo del parámetro del @RabbitListener en vez del header __TypeId__
-        // Esto resuelve el mismatch cuando payment-service publica con su propio package
         converter.setTypePrecedence(Jackson2JavaTypeMapper.TypePrecedence.INFERRED);
         return converter;
     }
@@ -55,4 +82,5 @@ public class RabbitMQConfig {
         template.setMessageConverter(jsonMessageConverter());
         return template;
     }
+
 }
