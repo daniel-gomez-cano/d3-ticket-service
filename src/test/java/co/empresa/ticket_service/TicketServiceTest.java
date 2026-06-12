@@ -101,8 +101,7 @@ class TicketServiceTest {
     @DisplayName("generateTicket: idempotente — retorna boleta existente sin crear duplicado")
     void generateTicket_idempotent_returnsExisting() {
         when(ticketRepo.findByOrderId("order-001")).thenReturn(Optional.of(activeTicket));
-        when(ticketTypeService.reserveOne(anyString()))
-        .thenReturn(ticketType);
+        
 
         TicketResponse response = ticketService.generateTicket(validRequest);
 
